@@ -1,4 +1,5 @@
 from tensorflow import keras
+import numpy as np
 import logging
 from .utils import is_numpy, ensure_tf_type
 
@@ -61,12 +62,7 @@ def convert_elementwise_add(node, params, layers, lambda_func, node_name, keras_
     input_1 = ensure_tf_type(layers[node.input[1]], layers[list(layers)[0]], name="%s_const2" % keras_name)
 
     try:
-        if not is_numpy(layers[node.input[0]]) and not is_numpy(layers[node.input[1]]):
-            add = keras.layers.Add(name=keras_name)
-            layers[node_name] = add([input_0, input_1])
-        else:
-            raise ValueError('Operands are different.')
-
+        layers[node_name] = keras.layers.Add(name=keras_name)([input_0, input_1])
     except (IndexError, ValueError):
         logger.warning('Failed to use keras.layers.Add. Fallback to TF lambda.')
 

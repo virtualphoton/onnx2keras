@@ -206,23 +206,23 @@ def convert_unsqueeze(node, params, layers, lambda_func, node_name, keras_name):
     """
     logger = logging.getLogger('onnx2keras.unsqueeze')
 
-    if len(node.input) != 1:
-        raise AttributeError('Number of inputs is not equal 1 for unsqueeze layer')
-
     if is_numpy(layers[node.input[0]]):
         logger.debug('Work with numpy types.')
         layers[node_name] = layers[node.input[0]]
-        for axis in params['axes']:
+        axes = layers[node.input[1]]
+        logger.debug(axes)
+        for axis in axes:
+            logger.debug(axis)
             layers[node_name] = np.expand_dims(layers[node_name], axis)
     else:
-
-        if len(params['axes']) != 1:
+        axes = layers[node.input[1]]
+        if len(axes) != 1:
             raise AttributeError('Number of axes is not equal 1. Cannot unsqueeze')
 
         # if params['axes'][0] != 0:
         #     raise AttributeError('Axes is not 0. Cannot unsqueeze')
 
-        def target_layer(x, axis=params['axes'][0]):
+        def target_layer(x, axis=axes[0]):
             from tensorflow import keras
             return keras.backend.expand_dims(x, axis)
 
@@ -324,24 +324,15 @@ def convert_slice(node, params, layers, lambda_func, node_name, keras_name):
                     assert AttributeError('Cant slice permuted axes')
 
         if isinstance(axes, list) or isinstance(axes, np.ndarray):
-            if params['change_ordering']:
-                raise NotImplementedError("change_ordering for Slice is not implemented")
+            rank = max(axes)
+            s = [None] * (rank+1)
+            e = [None] * (rank+1)
+            for _s, _e, axis in zip(starts, ends, axes):
+                s[axis] = _s
+                e[axis] = _e
+            slices = tuple(map(slice, s, e))
+            layers[node_name] = input_0[slices]
 
-            def target_layer(x, axes=np.array(axes), starts=starts, ends=ends):
-                import tensorflow as tf
-                rank = max(axes)
-                s = [0 for _ in range(rank+1)]
-                e = [0 for _ in range(rank+1)]
-                mask = 0xff
-                for _s, _e, axis in zip(starts, ends, axes):
-                    s[axis] = _s
-                    e[axis] = _e
-                    mask = mask ^ (0x1 << axis)
-                return tf.strided_slice(x, s, e, begin_mask=mask, end_mask=mask)
-
-            lambda_layer = keras.layers.Lambda(target_layer, name=keras_name)
-            layers[node_name] = lambda_layer(input_0)
-            lambda_func[keras_name] = target_layer
         else:
             def target_layer(x, axis=axes, starts=starts, ends=ends):
                 import tensorflow as tf
@@ -374,8 +365,8 @@ def convert_squeeze(node, params, layers, lambda_func, node_name, keras_name):
         assert AttributeError('More than 1 input for squeeze layer.')
 
     input_0 = ensure_tf_type(layers[node.input[0]], name="%s_const" % keras_name)
-
-    def target_layer(x, axis=params['axes'][0]):
+    axes = layers[node.input[1]]
+    def target_layer(x, axis=axes[0]):
         from tensorflow import keras
         return keras.backend.squeeze(x, axis)
 

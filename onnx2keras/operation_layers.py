@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
 import logging
@@ -90,6 +91,22 @@ def convert_exp(node, params, layers, lambda_func, node_name, keras_name):
     lambda_func[keras_name] = target_layer
 
 
+class ReduceSum(keras.layers.Layer):
+    def __init__(self, axis: int, keepdims: bool, name: str):
+        super().__init__(name=name)
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def get_config(self):
+        return {"axis": self.axis, "keepdims": self.keepdims, "name": self.name}
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+    def call(self, x):
+        return tf.reduce_sum(x, axis=self.axis, keepdims=self.keepdims)
+
 def convert_reduce_sum(node, params, layers, lambda_func, node_name, keras_name):
     """
     Convert reduce sum.
@@ -106,16 +123,10 @@ def convert_reduce_sum(node, params, layers, lambda_func, node_name, keras_name)
 
     input_0 = ensure_tf_type(layers[node.input[0]], name="%s_const" % keras_name)
 
-    axis = params['axes']
+    axis = layers[node.input[1]][0]
 
-    def target_layer(x, axis=axis):
-        import tensorflow.keras.backend as K
-        return K.sum(x, keepdims=True, axis=axis)
-
-    lambda_layer = keras.layers.Lambda(target_layer, name=keras_name)
-    layers[node_name] = lambda_layer(input_0)
+    layers[node_name] = ReduceSum(axis, params["keepdims"], name=keras_name)(input_0)
     layers[node_name].set_shape(layers[node_name].shape)
-    lambda_func[keras_name] = target_layer
 
 
 def convert_reduce_mean(node, params, layers, lambda_func, node_name, keras_name):
@@ -398,11 +409,10 @@ def convert_reduce_l2(node, params, layers, lambda_func, node_name, keras_name):
 
     input_0 = ensure_tf_type(layers[node.input[0]], name="%s_const" % keras_name)
     axis = params.get("axes", [-1])
-    keepdims = params.get("keepdims", 0)
 
-    def target_layer(x, axis=axis, keepdims=keepdims):
+    def target_layer(x, axis=axis):
         import tensorflow as tf
-        return tf.norm(x, axis=axis, keepdims=keepdims == 1)
+        return tf.norm(x, axis=axis)
 
     lambda_layer = keras.layers.Lambda(target_layer, name=keras_name)
     layers[node_name] = lambda_layer(input_0)

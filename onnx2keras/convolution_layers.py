@@ -112,9 +112,14 @@ def convert_conv(node, params, layers, lambda_func, node_name, keras_name):
                 weights=weights,
                 dilation_rate=dilation,
                 bias_initializer='zeros', kernel_initializer='zeros',
-                name=keras_name
+                name=keras_name,
+                data_format="channels_last",
             )
-            layers[node_name] = conv(input_0)
+            # input_0: [B, C, _, L]
+            a = keras.layers.Permute([2, 3, 1])(input_0) # [B, _, L, C]
+            b = layers[f"{node_name}_conv"] = conv(a)
+            c = keras.layers.Permute([3, 1, 2])(b) # [B, C, _, L]
+            layers[node_name] = c
 
         elif n_groups != 1:
             logger.debug('Number of groups more than 1, but less than number of in_channel, use group convolution')
@@ -171,10 +176,14 @@ def convert_conv(node, params, layers, lambda_func, node_name, keras_name):
                 activation=None,
                 dilation_rate=dilation,
                 bias_initializer='zeros', kernel_initializer='zeros',
-                name=keras_name
+                name=keras_name,
+                data_format="channels_last",
             )
+            a = keras.layers.Permute([2, 3, 1])(input_0) # [B, _, L, C]
+            b = layers[f"{node_name}_conv"] = conv(a)
+            c = keras.layers.Permute([3, 1, 2])(b) # [B, C, _, L]
 
-            layers[node_name] = conv(input_0)
+            layers[node_name] = c
     else:
         # 1D conv
         W = W.transpose(2, 1, 0)

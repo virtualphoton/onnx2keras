@@ -33,6 +33,7 @@ def ensure_tf_type(obj, fake_input_layer=None, name=None):
     if is_numpy(obj):
         if obj.dtype == np.int64:
             obj = np.int32(obj)
+        obj = np.atleast_2d(obj)
 
         def target_layer(_, inp=obj, dtype=obj.dtype.name):
             import numpy as np
