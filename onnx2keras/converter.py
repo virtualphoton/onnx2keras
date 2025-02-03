@@ -105,11 +105,13 @@ def onnx_to_keras(onnx_model, input_names,
                 else:
                     input_shape = [i.dim_value or None for i in onnx_i.type.tensor_type.shape.dim][1:]
 
-                layers[input_name] = keras.layers.InputLayer(
+                inp_name = f"{input_name}_0"
+                layers[inp_name] = keras.layers.InputLayer(
                     input_shape=input_shape, name=input_name
                 ).output
+                layers[input_name] = keras.layers.Identity()(layers[inp_name])
 
-                keras_inputs.append(layers[input_name])
+                keras_inputs.append(layers[inp_name])
 
                 logger.debug('Found input {0} with shape {1}'.format(input_name, input_shape))
 
@@ -196,7 +198,6 @@ def onnx_to_keras(onnx_model, input_names,
                     node.input[-1] = new_axes
         if "self_attention_multi_channel" in node.name and node_type == "Softmax":
             node_params["axis"] = perm[node_params["axis"]]
-
         AVAILABLE_CONVERTERS[node_type](
             node,
             node_params,
