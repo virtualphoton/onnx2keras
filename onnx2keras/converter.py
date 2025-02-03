@@ -176,14 +176,26 @@ def onnx_to_keras(onnx_model, input_names,
 
         if "batchnorm" in node.name:
             if "batchnorm/mul" in node.name:
-                layers[node_name] = layers[node.input[0]] = layers[f"{node.input[0]}_conv"]
+                layers[node_name] = layers[node.input[0]] = layers[node.input[0]]
             else:
-                layers[node_name] = keras.layers.Permute([3, 1, 2])(keras.layers.BatchNormalization(axis=-1)(layers[node.input[0]]))
+                layers[node_name] = keras.layers.BatchNormalization(axis=-1)(layers[node.input[0]])
             continue
-        if "node_type" == "Relu":
-            inp = layers[node.input[0]] = layers[f"{node.input[0]}_conv"]
-            layers[node_name] = keras.layers.Permute([3, 1, 2])(keras.layers.ReLU()(inp))
+
+        if node_type == "Transpose":
+            layers[node_name] = layers[node.input[0]]
             continue
+        perm = numpy.array([0, 3, 1, 2])
+        if "keras_conv1d_streaming" in node.name:
+            match node_type:
+                case "Concat":
+                    node_params['axis'] = 2
+                case "Slice":
+                    axes = node.input[-1]
+                    new_axes = f"{axes}_perm"
+                    layers[new_axes] = perm[layers[axes]]
+                    node.input[-1] = new_axes
+        if "self_attention_multi_channel" in node.name and node_type == "Softmax":
+            node_params["axis"] = perm[node_params["axis"]]
 
         AVAILABLE_CONVERTERS[node_type](
             node,

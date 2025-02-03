@@ -117,14 +117,7 @@ def convert_concat(node, params, layers, lambda_func, node_name, keras_name):
                 logger.warning('Something goes wrong with concat layers. Will use TF fallback.')
                 logger.warning('---')
 
-                def target_layer(x, axis=params['axis']):
-                    import tensorflow as tf
-                    x = tf.concat(x, axis=axis)
-                    return x
-
-                lambda_layer = keras.layers.Lambda(target_layer, name="%s_CHW" % keras_name)
-                layers[node_name] = lambda_layer(layer_input)
-                lambda_func["%s_CHW" % keras_name] = target_layer
+                layers[node_name] = keras.layers.concatenate(layer_input, axis=params['axis'])
         else:
             layers[node_name] = layer_input[0]
 
